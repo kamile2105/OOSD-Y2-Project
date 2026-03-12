@@ -13,6 +13,12 @@ public class CustomerGUI extends JFrame {
     private CardLayout cardLayout = new CardLayout();
     private JPanel mainContainer = new JPanel(cardLayout);
 
+    // Pattern: Only allows letters (a-z, A-Z) and spaces
+    private final String NAME_PATTERN = "^[a-zA-Z\\s]+$";
+
+    // Pattern: Standard email format (text @ text . text)
+    private final String EMAIL_PATTERN = "^[A-Za-z0-0+_.-]+@(.+)$";
+
     // the neon colour palette to design the look of my interface
     private final Color BG_DARK = new Color(15, 15, 25);
     private final Color NEON_PINK = new Color(255, 0, 255);
@@ -64,20 +70,32 @@ public class CustomerGUI extends JFrame {
         }
     }
 
-    // after staff login successful
     private JPanel createStaffDashboard() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setBackground(BG_DARK);
+
+        // Header
         JLabel lbl = new JLabel("STAFF CONTROL UNIT ACTIVE", SwingConstants.CENTER);
         lbl.setFont(new Font("Monospaced", Font.BOLD, 36));
         lbl.setForeground(NEON_PINK);
-        panel.add(lbl, BorderLayout.CENTER);
+        panel.add(lbl, BorderLayout.NORTH);
 
-        JButton btnLogout = createNeonButton("LOGOUT", Color.GRAY);
+        // TABLE AREA: You could add a JTable here to show data from CustomerDAO
+        String[] columns = {"ID", "Name", "Email", "Tickets"};
+        Object[][] data = {}; // Fetch this from your DAO
+        JTable table = new JTable(data, columns);
+        JScrollPane scrollPane = new JScrollPane(table);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Footer with Logout
+
+        JButton btnLogout = createNeonButton("TERMINATE SESSION", Color.GRAY);
         btnLogout.addActionListener(e -> cardLayout.show(mainContainer, "SELECTION"));
         panel.add(btnLogout, BorderLayout.SOUTH);
         return panel;
+
     }
+
 
     // after customer registers successfully
     private JPanel createCustomerWelcomePage() {
@@ -123,6 +141,17 @@ public class CustomerGUI extends JFrame {
         cardGrid.add(btnStaff);
 
         panel.add(cardGrid, BorderLayout.CENTER);
+
+        JButton btnExit = createNeonButton("SHUTDOWN SYSTEM", Color.RED);
+        btnExit.addActionListener(e -> System.exit(0)); // Completely closes the app
+
+        // create a container for the exit button so it isn't huge
+        JPanel exitContainer = new JPanel();
+        exitContainer.setOpaque(false);
+        exitContainer.setBorder(new EmptyBorder(50, 0, 0, 0));
+        exitContainer.add(btnExit);
+
+        panel.add(exitContainer, BorderLayout.SOUTH);
 
         return panel;
     }
@@ -183,23 +212,49 @@ public class CustomerGUI extends JFrame {
 
         panel.add(loginForm, BorderLayout.CENTER);
 
-        JPanel footer = new JPanel(new GridLayout(1, 2, 15, 15));
+        // updated staff footer with buttons
+        JPanel footer = new JPanel(new GridLayout(1, 3, 15, 15)); // 3 Columns for Back, Clear, Enter
         footer.setOpaque(false);
+
         JButton btnBack = createNeonButton("BACK", Color.GRAY);
+        JButton btnClear = createNeonButton("CLEAR", Color.YELLOW);
 
-        footer.add(btnBack);
-        footer.add(btnLogin);
-        panel.add(footer, BorderLayout.SOUTH);
-
+        // back button logic
         btnBack.addActionListener(e -> cardLayout.show(mainContainer, "SELECTION"));
+
+        // the clear button logic
+        btnClear.addActionListener(e -> {
+            txtUser.setText("");
+            txtPass.setText("");
+            txtUser.requestFocus(); // Resets focus to the top field
+        });
+
+        // add to the footer following buttons
+        footer.add(btnBack);
+        footer.add(btnClear);
+        footer.add(btnLogin);
+
+        panel.add(footer, BorderLayout.SOUTH);
         btnLogin.addActionListener(e -> {
-            String user = txtUser.getText();
-            String pass = new String(txtPass.getPassword());
-            if (new UserDAO().loginUser(user, pass)) {
-                // NAVIGATION: Switch to the staff dashboard page
-                cardLayout.show(mainContainer, "STAFF_DASHBOARD");
-            } else {
-                showNeonError("Access Denied: Invalid Credentials");
+            try {
+                String user = txtUser.getText();
+                String pass = new String(txtPass.getPassword());
+
+                // We wrap the DAO call in a try block to catch "Fatal" database errors
+                if (new UserDAO().loginUser(user, pass)) {
+                    // NAVIGATION: Switch to the staff dashboard page
+                    cardLayout.show(mainContainer, "STAFF_DASHBOARD");
+
+                    // Optional: Clear fields for security
+                    txtUser.setText("");
+                    txtPass.setText("");
+                } else {
+                    showNeonError("Access Denied: Invalid Credentials");
+                }
+            } catch (Exception ex) {
+                // This prevents the exit and tells you WHY it's failing
+                showNeonError("CONNECTION TERMINATED: " + ex.getMessage());
+                ex.printStackTrace(); // Check your IDE console for the full red text error
             }
         });
 
@@ -233,17 +288,34 @@ public class CustomerGUI extends JFrame {
 
         mainPanel.add(formPanel, BorderLayout.CENTER);
 
-        JPanel footer = new JPanel(new GridLayout(1, 2, 15, 15));
+        // footer logic with clear button
+        JPanel footer = new JPanel(new GridLayout(1, 3, 15, 15)); // Changed to 1 row, 3 columns
         footer.setOpaque(false);
-        JButton btnBack = createNeonButton("LOGOUT", Color.GRAY);
+
+        JButton btnBack = createNeonButton("BACK", Color.GRAY);
+        JButton btnClear = createNeonButton("CLEAR", Color.YELLOW); // Yellow for a "warning/utility" feel
+        // btnAdd is already defined at the top of your class
+
+        // Back Button Functionality
+        btnBack.addActionListener(e -> cardLayout.show(mainContainer, "SELECTION"));
+
+        // Clear Button Functionality
+        btnClear.addActionListener(e -> {
+            txtName.setText("");
+            txtEmail.setText("");
+            txtTickets.setText("");
+            txtName.requestFocus(); // Puts the typing cursor back at the start
+        });
 
         footer.add(btnBack);
+        footer.add(btnClear);
         footer.add(btnAdd);
+
         mainPanel.add(footer, BorderLayout.SOUTH);
 
         btnAdd.addActionListener(e -> {
             try {
-                // Validation: Ensure fields aren't empty
+                // validation ensure fields aren't empty
                 if(txtName.getText().isEmpty() || txtEmail.getText().isEmpty()) {
                     showNeonError("All fields are required!");
                     return;
@@ -268,6 +340,59 @@ public class CustomerGUI extends JFrame {
                 showNeonError("Data Error: Tickets must be Numeric");
             } catch (Exception ex) {
                 showNeonError("System Error: " + ex.getMessage());
+            }
+        });
+        btnAdd.addActionListener(e -> {
+            try {
+                // .trim() removes accidental leading/trailing spaces
+                String name = txtName.getText().trim();
+                String email = txtEmail.getText().trim();
+                String ticketsRaw = txtTickets.getText().trim();
+
+                // check for empty fields
+                if (name.isEmpty() || email.isEmpty() || ticketsRaw.isEmpty()) {
+                    showNeonError("DATA GAP: All uplink fields must be populated.");
+                    return; // Stops the method here
+                }
+
+                // validate the name
+                if (!name.matches("^[a-zA-Z\\s]+$")) {
+                    showNeonError("IDENTITY ERROR: Names cannot contain numeric digits.");
+                    return;
+                }
+
+                // validate email format must have @ and a dot
+                if (!email.matches("^[A-Za-z0-9+_.-]+@(.+)$")) {
+                    showNeonError("COMMS ERROR: Invalid Email Protocol format.");
+                    return;
+                }
+
+                // validate the tickets (must be a whole number)
+                int tickets = Integer.parseInt(ticketsRaw);
+                if (tickets < 0) {
+                    showNeonError("LOGIC ERROR: Ticket count cannot be negative.");
+                    return;
+                }
+
+                // checks have passed then proceed to save
+                Customer c = new Customer();
+                c.setName(name);
+                c.setEmail(email);
+                c.setTickets(tickets);
+
+                new CustomerDAO().addCustomer(c);
+                cardLayout.show(mainContainer, "CUSTOMER_WELCOME");
+
+                // clear fields for next entry
+                txtName.setText("");
+                txtEmail.setText("");
+                txtTickets.setText("");
+
+            } catch (NumberFormatException ex) {
+                // catches if user types letters in a numbers field
+                showNeonError("DATA ERROR: Ticket quantity must be a numeric integer.");
+            } catch (Exception ex) {
+                showNeonError("SYSTEM FAILURE: " + ex.getMessage());
             }
         });
 
